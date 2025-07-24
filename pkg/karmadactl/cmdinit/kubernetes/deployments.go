@@ -19,6 +19,7 @@ package kubernetes
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -26,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 
 	"github.com/karmada-io/karmada/pkg/karmadactl/cmdinit/options"
@@ -119,6 +121,70 @@ func (i *CommandInitOption) karmadaAPIServerContainerCommand() []string {
 	return command
 }
 
+func karmadaComponentCommand(defaultArgs, extraArgs []string) []string {
+	// 没有参数直接返回
+	if len(extraArgs) == 0 {
+		return defaultArgs
+	}
+	// 校验参数
+	args, err := valudateArgs(extraArgs)
+	if err != nil {
+		klog.Errorf("%v", err)
+		return nil
+	}
+
+	// 合并参数
+	return mergeCommandArgs(defaultArgs, args)
+}
+
+// 正则校验用户给的参数
+// format: --key=value
+func valudateArgs(args []string) ([]string, error) {
+	argPattern := regexp.MustCompile(`^--[a-zA-Z0-9\-]+=(.*)?$`)
+	for _, arg := range args {
+		if !argPattern.MatchString(arg) {
+			return nil, fmt.Errorf("invalid argument: %s", arg)
+		}
+	}
+	return args, nil
+}
+
+func mergeCommandArgs(defaultArgs, extraArgs []string) []string {
+	finalArgs := make([]string, 0, len(defaultArgs))
+	argMap := make(map[string]string)
+
+	// 将默认参数转成map
+	for _, arg := range defaultArgs[1:] { // 跳过第一个参数
+		if strings.HasPrefix(arg, "--") {
+			parts := strings.SplitN(arg, "=", 2) // 避免value中含有=
+			if len(parts) == 2 {
+				argMap[parts[0]] = parts[1]
+			} else {
+				argMap[parts[0]] = ""
+			}
+		}
+	}
+
+	// extra 参数覆盖默认参数
+	for _, arg := range extraArgs {
+		if strings.HasPrefix(arg, "--") {
+			parts := strings.SplitN(arg, "=", 2) // 避免value中含有=
+			if len(parts) == 2 {
+				argMap[parts[0]] = parts[1]
+			} else {
+				argMap[parts[0]] = ""
+			}
+		}
+	}
+
+	// 构造命令行参数
+	finalArgs = append(finalArgs, defaultArgs[0]) // 加上命令名
+	for k, v := range argMap {
+		finalArgs = append(finalArgs, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	return finalArgs
+}
 func (i *CommandInitOption) makeKarmadaAPIServerDeployment() *appsv1.Deployment {
 	apiServer := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -189,7 +255,7 @@ func (i *CommandInitOption) makeKarmadaAPIServerDeployment() *appsv1.Deployment 
 			{
 				Name:    karmadaAPIServerDeploymentAndServiceName,
 				Image:   i.kubeAPIServerImage(),
-				Command: i.karmadaAPIServerContainerCommand(),
+				Command: karmadaComponentCommand(i.karmadaAPIServerContainerCommand(), i.KarmadaAPIServerExtraArgs),
 				Ports: []corev1.ContainerPort{
 					{
 						Name:          portName,
@@ -228,6 +294,7 @@ func (i *CommandInitOption) makeKarmadaAPIServerDeployment() *appsv1.Deployment 
 	}
 
 	// PodTemplateSpec
+	// pod的元数据和规格
 	podTemplateSpec := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      karmadaAPIServerDeploymentAndServiceName,
@@ -246,6 +313,32 @@ func (i *CommandInitOption) makeKarmadaAPIServerDeployment() *appsv1.Deployment 
 		},
 	}
 	return apiServer
+}
+
+// defaultArgs
+func (i *CommandInitOption) karmadaKubeControllerManagerContainerCommand() []string {
+	return []string{
+		"kube-controller-manager",
+		"--allocate-node-cidrs=true",
+		fmt.Sprintf("--kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
+		fmt.Sprintf("--authentication-kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
+		fmt.Sprintf("--authorization-kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
+		"--bind-address=0.0.0.0",
+		fmt.Sprintf("--client-ca-file=%s/%s.crt", karmadaCertsVolumeMountPath, globaloptions.CaCertAndKeyName),
+		"--cluster-cidr=10.244.0.0/16",
+		fmt.Sprintf("--cluster-name=%s", options.ClusterName),
+		fmt.Sprintf("--cluster-signing-cert-file=%s/%s.crt", karmadaCertsVolumeMountPath, globaloptions.CaCertAndKeyName),
+		fmt.Sprintf("--cluster-signing-key-file=%s/%s.key", karmadaCertsVolumeMountPath, globaloptions.CaCertAndKeyName),
+		"--controllers=namespace,garbagecollector,serviceaccount-token,ttl-after-finished,bootstrapsigner,tokencleaner,csrcleaner,csrsigning,clusterrole-aggregation",
+		"--leader-elect=true",
+		fmt.Sprintf("--leader-elect-resource-namespace=%s", i.Namespace),
+		"--node-cidr-mask-size=24",
+		fmt.Sprintf("--root-ca-file=%s/%s.crt", karmadaCertsVolumeMountPath, globaloptions.CaCertAndKeyName),
+		fmt.Sprintf("--service-account-private-key-file=%s/%s.key", karmadaCertsVolumeMountPath, options.KarmadaCertAndKeyName),
+		fmt.Sprintf("--service-cluster-ip-range=%s", serviceClusterIP),
+		"--use-service-account-credentials=true",
+		"--v=4",
+	}
 }
 
 func (i *CommandInitOption) makeKarmadaKubeControllerManagerDeployment() *appsv1.Deployment {
@@ -302,30 +395,9 @@ func (i *CommandInitOption) makeKarmadaKubeControllerManagerDeployment() *appsv1
 		AutomountServiceAccountToken: ptr.To[bool](false),
 		Containers: []corev1.Container{
 			{
-				Name:  kubeControllerManagerClusterRoleAndDeploymentAndServiceName,
-				Image: i.kubeControllerManagerImage(),
-				Command: []string{
-					"kube-controller-manager",
-					"--allocate-node-cidrs=true",
-					fmt.Sprintf("--kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
-					fmt.Sprintf("--authentication-kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
-					fmt.Sprintf("--authorization-kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
-					"--bind-address=0.0.0.0",
-					fmt.Sprintf("--client-ca-file=%s/%s.crt", karmadaCertsVolumeMountPath, globaloptions.CaCertAndKeyName),
-					"--cluster-cidr=10.244.0.0/16",
-					fmt.Sprintf("--cluster-name=%s", options.ClusterName),
-					fmt.Sprintf("--cluster-signing-cert-file=%s/%s.crt", karmadaCertsVolumeMountPath, globaloptions.CaCertAndKeyName),
-					fmt.Sprintf("--cluster-signing-key-file=%s/%s.key", karmadaCertsVolumeMountPath, globaloptions.CaCertAndKeyName),
-					"--controllers=namespace,garbagecollector,serviceaccount-token,ttl-after-finished,bootstrapsigner,tokencleaner,csrcleaner,csrsigning,clusterrole-aggregation",
-					"--leader-elect=true",
-					fmt.Sprintf("--leader-elect-resource-namespace=%s", i.Namespace),
-					"--node-cidr-mask-size=24",
-					fmt.Sprintf("--root-ca-file=%s/%s.crt", karmadaCertsVolumeMountPath, globaloptions.CaCertAndKeyName),
-					fmt.Sprintf("--service-account-private-key-file=%s/%s.key", karmadaCertsVolumeMountPath, options.KarmadaCertAndKeyName),
-					fmt.Sprintf("--service-cluster-ip-range=%s", serviceClusterIP),
-					"--use-service-account-credentials=true",
-					"--v=4",
-				},
+				Name:          kubeControllerManagerClusterRoleAndDeploymentAndServiceName,
+				Image:         i.kubeControllerManagerImage(),
+				Command:       karmadaComponentCommand(i.karmadaKubeControllerManagerContainerCommand(), i.KubeControllerManagerExtraArgs),
 				LivenessProbe: livenessProbe,
 				Ports: []corev1.ContainerPort{
 					{
@@ -394,6 +466,22 @@ func (i *CommandInitOption) makeKarmadaKubeControllerManagerDeployment() *appsv1
 	return kubeControllerManager
 }
 
+func (i *CommandInitOption) karmadaSchedulerContainerCommand() []string {
+	return []string{
+		"/bin/karmada-scheduler",
+		fmt.Sprintf("--kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
+		"--metrics-bind-address=$(POD_IP):8080",
+		"--health-probe-bind-address=$(POD_IP):10351",
+		"--enable-scheduler-estimator=true",
+		"--leader-elect=true",
+		"--scheduler-estimator-ca-file=/etc/karmada/pki/ca.crt",
+		"--scheduler-estimator-cert-file=/etc/karmada/pki/karmada.crt",
+		"--scheduler-estimator-key-file=/etc/karmada/pki/karmada.key",
+		fmt.Sprintf("--leader-elect-resource-namespace=%s", i.Namespace),
+		"--v=4",
+	}
+}
+
 func (i *CommandInitOption) makeKarmadaSchedulerDeployment() *appsv1.Deployment {
 	scheduler := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -460,19 +548,7 @@ func (i *CommandInitOption) makeKarmadaSchedulerDeployment() *appsv1.Deployment 
 						},
 					},
 				},
-				Command: []string{
-					"/bin/karmada-scheduler",
-					fmt.Sprintf("--kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
-					"--metrics-bind-address=$(POD_IP):8080",
-					"--health-probe-bind-address=$(POD_IP):10351",
-					"--enable-scheduler-estimator=true",
-					"--leader-elect=true",
-					"--scheduler-estimator-ca-file=/etc/karmada/pki/ca.crt",
-					"--scheduler-estimator-cert-file=/etc/karmada/pki/karmada.crt",
-					"--scheduler-estimator-key-file=/etc/karmada/pki/karmada.key",
-					fmt.Sprintf("--leader-elect-resource-namespace=%s", i.Namespace),
-					"--v=4",
-				},
+				Command:       karmadaComponentCommand(i.karmadaSchedulerContainerCommand(), i.KarmadaSchedulerExtraArgs),
 				LivenessProbe: livenessProbe,
 				Ports: []corev1.ContainerPort{
 					{
@@ -544,6 +620,18 @@ func (i *CommandInitOption) makeKarmadaSchedulerDeployment() *appsv1.Deployment 
 	return scheduler
 }
 
+func (i *CommandInitOption) karmadaControllerMangerContainerCommand() []string {
+	return []string{
+		"/bin/karmada-controller-manager",
+		fmt.Sprintf("--kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
+		"--metrics-bind-address=$(POD_IP):8080",
+		"--health-probe-bind-address=$(POD_IP):10357",
+		"--cluster-status-update-frequency=10s",
+		fmt.Sprintf("--leader-elect-resource-namespace=%s", i.Namespace),
+		"--v=4",
+	}
+}
+
 func (i *CommandInitOption) makeKarmadaControllerManagerDeployment() *appsv1.Deployment {
 	karmadaControllerManager := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -609,15 +697,7 @@ func (i *CommandInitOption) makeKarmadaControllerManagerDeployment() *appsv1.Dep
 						},
 					},
 				},
-				Command: []string{
-					"/bin/karmada-controller-manager",
-					fmt.Sprintf("--kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
-					"--metrics-bind-address=$(POD_IP):8080",
-					"--health-probe-bind-address=$(POD_IP):10357",
-					"--cluster-status-update-frequency=10s",
-					fmt.Sprintf("--leader-elect-resource-namespace=%s", i.Namespace),
-					"--v=4",
-				},
+				Command:       karmadaComponentCommand(i.karmadaControllerMangerContainerCommand(), i.KarmadaControllerManagerExtraArgs),
 				LivenessProbe: livenessProbe,
 				Ports: []corev1.ContainerPort{
 					{
@@ -678,6 +758,19 @@ func (i *CommandInitOption) makeKarmadaControllerManagerDeployment() *appsv1.Dep
 	}
 
 	return karmadaControllerManager
+}
+
+func (i *CommandInitOption) karmadaWebhookContainerCommand() []string {
+	return []string{
+		"/bin/karmada-webhook",
+		fmt.Sprintf("--kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
+		"--bind-address=$(POD_IP)",
+		"--metrics-bind-address=$(POD_IP):8080",
+		"--health-probe-bind-address=$(POD_IP):8000",
+		fmt.Sprintf("--secure-port=%v", webhookTargetPort),
+		fmt.Sprintf("--cert-dir=%s", webhookCertVolumeMountPath),
+		"--v=4",
+	}
 }
 
 func (i *CommandInitOption) makeKarmadaWebhookDeployment() *appsv1.Deployment {
@@ -743,16 +836,7 @@ func (i *CommandInitOption) makeKarmadaWebhookDeployment() *appsv1.Deployment {
 						},
 					},
 				},
-				Command: []string{
-					"/bin/karmada-webhook",
-					fmt.Sprintf("--kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
-					"--bind-address=$(POD_IP)",
-					"--metrics-bind-address=$(POD_IP):8080",
-					"--health-probe-bind-address=$(POD_IP):8000",
-					fmt.Sprintf("--secure-port=%v", webhookTargetPort),
-					fmt.Sprintf("--cert-dir=%s", webhookCertVolumeMountPath),
-					"--v=4",
-				},
+				Command: karmadaComponentCommand(i.karmadaWebhookContainerCommand(), i.KarmadaWebhookExtraArgs),
 				Ports: []corev1.ContainerPort{
 					{
 						Name:          webhookPortName,
@@ -827,6 +911,35 @@ func (i *CommandInitOption) makeKarmadaWebhookDeployment() *appsv1.Deployment {
 	return webhook
 }
 
+func (i *CommandInitOption) karmadaAggregatedAPIServerContainerCommand() []string {
+	var etcdServers string
+	if etcdServers = i.ExternalEtcdServers; etcdServers == "" {
+		etcdServers = strings.TrimRight(i.etcdServers(), ",")
+	}
+	command := []string{
+		"/bin/karmada-aggregated-apiserver",
+		fmt.Sprintf("--kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
+		fmt.Sprintf("--authentication-kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
+		fmt.Sprintf("--authorization-kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
+		fmt.Sprintf("--etcd-servers=%s", etcdServers),
+		fmt.Sprintf("--etcd-cafile=%s/%s.crt", karmadaCertsVolumeMountPath, options.EtcdCaCertAndKeyName),
+		fmt.Sprintf("--etcd-certfile=%s/%s.crt", karmadaCertsVolumeMountPath, options.EtcdClientCertAndKeyName),
+		fmt.Sprintf("--etcd-keyfile=%s/%s.key", karmadaCertsVolumeMountPath, options.EtcdClientCertAndKeyName),
+		fmt.Sprintf("--tls-cert-file=%s/%s.crt", karmadaCertsVolumeMountPath, options.KarmadaCertAndKeyName),
+		fmt.Sprintf("--tls-private-key-file=%s/%s.key", karmadaCertsVolumeMountPath, options.KarmadaCertAndKeyName),
+		"--tls-min-version=VersionTLS13",
+		"--audit-log-path=-",
+		"--audit-log-maxage=0",
+		"--audit-log-maxbackup=0",
+		"--bind-address=$(POD_IP)",
+	}
+	if i.ExternalEtcdKeyPrefix != "" {
+		command = append(command, fmt.Sprintf("--etcd-prefix=%s", i.ExternalEtcdKeyPrefix))
+	}
+
+	return command
+}
+
 func (i *CommandInitOption) makeKarmadaAggregatedAPIServerDeployment() *appsv1.Deployment {
 	aa := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -870,30 +983,6 @@ func (i *CommandInitOption) makeKarmadaAggregatedAPIServerDeployment() *appsv1.D
 		TimeoutSeconds:      15,
 	}
 
-	var etcdServers string
-	if etcdServers = i.ExternalEtcdServers; etcdServers == "" {
-		etcdServers = strings.TrimRight(i.etcdServers(), ",")
-	}
-	command := []string{
-		"/bin/karmada-aggregated-apiserver",
-		fmt.Sprintf("--kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
-		fmt.Sprintf("--authentication-kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
-		fmt.Sprintf("--authorization-kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
-		fmt.Sprintf("--etcd-servers=%s", etcdServers),
-		fmt.Sprintf("--etcd-cafile=%s/%s.crt", karmadaCertsVolumeMountPath, options.EtcdCaCertAndKeyName),
-		fmt.Sprintf("--etcd-certfile=%s/%s.crt", karmadaCertsVolumeMountPath, options.EtcdClientCertAndKeyName),
-		fmt.Sprintf("--etcd-keyfile=%s/%s.key", karmadaCertsVolumeMountPath, options.EtcdClientCertAndKeyName),
-		fmt.Sprintf("--tls-cert-file=%s/%s.crt", karmadaCertsVolumeMountPath, options.KarmadaCertAndKeyName),
-		fmt.Sprintf("--tls-private-key-file=%s/%s.key", karmadaCertsVolumeMountPath, options.KarmadaCertAndKeyName),
-		"--tls-min-version=VersionTLS13",
-		"--audit-log-path=-",
-		"--audit-log-maxage=0",
-		"--audit-log-maxbackup=0",
-		"--bind-address=$(POD_IP)",
-	}
-	if i.ExternalEtcdKeyPrefix != "" {
-		command = append(command, fmt.Sprintf("--etcd-prefix=%s", i.ExternalEtcdKeyPrefix))
-	}
 	podSpec := corev1.PodSpec{
 		ImagePullSecrets:  i.getImagePullSecrets(),
 		PriorityClassName: i.KarmadaAggregatedAPIServerPriorityClass,
@@ -931,7 +1020,7 @@ func (i *CommandInitOption) makeKarmadaAggregatedAPIServerDeployment() *appsv1.D
 						},
 					},
 				},
-				Command:        command,
+				Command:        karmadaComponentCommand(i.karmadaAggregatedAPIServerContainerCommand(), i.KarmadaAggregatedAPIServerExtraArgs),
 				ReadinessProbe: readinesProbe,
 				LivenessProbe:  livenesProbe,
 				Resources: corev1.ResourceRequirements{

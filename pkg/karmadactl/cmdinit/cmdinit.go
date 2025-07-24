@@ -184,6 +184,16 @@ func NewCmdInit(parentCommand string) *cobra.Command {
 	flags.Int32VarP(&opts.KarmadaAggregatedAPIServerReplicas, "karmada-aggregated-apiserver-replicas", "", 1, "Karmada aggregated apiserver replica set")
 	flags.StringVar(&opts.KarmadaAggregatedAPIServerPriorityClass, "karmada-aggregated-apiserver-priority-class", "system-node-critical", "The priority class name for the component karmada-aggregated-apiserver.")
 
+	// extraArgs
+	// etcd todo  usage format
+	flags.StringSliceVar(&opts.EtcdExtraArgs, "etcd-extra-args", nil, "Extra arguments for etcd")
+	flags.StringSliceVar(&opts.KarmadaAPIServerExtraArgs, "karmada-apiserver-extra-args", nil, "Extra arguments for karmada-apiserver")
+	flags.StringSliceVar(&opts.KarmadaSchedulerExtraArgs, "karmada-scheduler-extra-args", nil, "Extra arguments for karmada-scheduler")
+	flags.StringSliceVar(&opts.KarmadaControllerManagerExtraArgs, "karmada-controller-manager-extra-args", nil, "Extra arguments for karmada-controller-manager")
+	flags.StringSliceVar(&opts.KarmadaWebhookExtraArgs, "karmada-webhook-extra-args", nil, "Extra arguments for karmada-webhook")
+	flags.StringSliceVar(&opts.KubeControllerManagerExtraArgs, "kube-controller-manager-extra-args", nil, "Extra arguments for kube-controller-manager")
+	flags.StringSliceVar(&opts.KarmadaAggregatedAPIServerExtraArgs, "karmada-aggregated-apiserver-extra-args", nil, "Extra arguments for karmada-aggregated-apiserver")
+
 	return cmd
 }
 
