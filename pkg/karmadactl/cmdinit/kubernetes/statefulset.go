@@ -262,7 +262,7 @@ func (i *CommandInitOption) makeETCDStatefulSet() *appsv1.StatefulSet {
 				Image: i.etcdImage(),
 				Command: []string{
 					"/usr/local/bin/etcd",
-					fmt.Sprintf("--config-file=%s/%s", etcdContainerConfigDataMountPath, etcdConfigName),
+					fmt.Sprintf("--config-file=%s/%s", etcdContainerConfigDataMountPath, etcdConfigName), // todo
 				},
 				Ports: []corev1.ContainerPort{
 					{
@@ -313,7 +313,7 @@ func (i *CommandInitOption) makeETCDStatefulSet() *appsv1.StatefulSet {
 		{
 			Name:    "etcd-init-conf",
 			Image:   i.etcdInitImage(),
-			Command: i.etcdInitContainerCommand(),
+			Command: i.etcdInitContainerCommand(), // todo
 			VolumeMounts: []corev1.VolumeMount{
 				{
 					Name:      etcdContainerConfigVolumeMountName,
