@@ -18,7 +18,6 @@ package kubernetes
 
 import (
 	"fmt"
-	"k8s.io/klog/v2"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -28,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 
 	"github.com/karmada-io/karmada/pkg/karmadactl/cmdinit/options"
@@ -122,9 +122,8 @@ func (i *CommandInitOption) karmadaAPIServerContainerCommand() []string {
 }
 
 func karmadaComponentCommand(defaultArgs, extraArgs []string) []string {
-
 	// 没有参数直接返回
-	if extraArgs == nil || len(extraArgs) == 0 {
+	if len(extraArgs) == 0 {
 		return defaultArgs
 	}
 	// 校验参数
