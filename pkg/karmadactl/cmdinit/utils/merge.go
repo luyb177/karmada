@@ -18,9 +18,10 @@ package utils
 
 import (
 	"fmt"
-	"k8s.io/klog/v2"
 	"regexp"
 	"strings"
+
+	"k8s.io/klog/v2"
 )
 
 // KarmadaComponentCommand 合并默认参数和用户给的参数
