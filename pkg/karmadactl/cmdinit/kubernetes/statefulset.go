@@ -425,7 +425,8 @@ func (i *CommandInitOption) makeETCDStatefulSet() *appsv1.StatefulSet {
 // They are obtained by the return value of the function CipherSuites() under the go/src/crypto/tls/cipher_suites.go package.
 // Consistent with the Preferred values of k8s’s default cipher suites.
 func genEtcdCipherSuites() string {
-	cipherSuites := strings.Join(flag.PreferredTLSCipherNames(), "\",\"")
-	cipherSuites = "[\"" + cipherSuites + "\"]"
-	return cipherSuites
+	//cipherSuites := strings.Join(flag.PreferredTLSCipherNames(), "\",\"")
+	//cipherSuites = "[\"" + cipherSuites + "\"]"
+	//return cipherSuites
+	return strings.Join(flag.PreferredTLSCipherNames(), ",")
 }
