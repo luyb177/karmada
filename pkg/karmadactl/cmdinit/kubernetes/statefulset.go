@@ -194,10 +194,10 @@ func (i *CommandInitOption) defaultEtcdInitContainerCommand() []string {
 
 	command := []string{
 		"/usr/local/bin/etcd",
-		fmt.Sprintf("--name=${%s}", etcdEnvPodName),
-		fmt.Sprintf("--listen-peer-urls=http://${%s}:%v", etcdEnvPodIP, etcdContainerServerPort),
-		fmt.Sprintf("--listen-client-urls=https://${%s}:%v,http://127.0.0.1:%v", etcdEnvPodIP, etcdContainerClientPort, etcdContainerClientPort),
-		fmt.Sprintf("--advertise-client-urls=https://${%s}.%s.%s.svc.%s:%v", etcdEnvPodName, etcdStatefulSetAndServiceName, i.Namespace, i.HostClusterDomain, etcdContainerClientPort),
+		fmt.Sprintf("--name=$(%s)", etcdEnvPodName),
+		fmt.Sprintf("--listen-peer-urls=http://$(%s):%v", etcdEnvPodIP, etcdContainerServerPort),
+		fmt.Sprintf("--listen-client-urls=https://$(%s):%v,http://127.0.0.1:%v", etcdEnvPodIP, etcdContainerClientPort, etcdContainerClientPort),
+		fmt.Sprintf("--advertise-client-urls=https://$(%s).%s.%s.svc.%s:%v", etcdEnvPodName, etcdStatefulSetAndServiceName, i.Namespace, i.HostClusterDomain, etcdContainerClientPort),
 		fmt.Sprintf("--initial-cluster=%s", strings.TrimRight(etcdClusterConfig, ",")),
 		"--initial-cluster-state=new",
 		"--client-cert-auth=true",
@@ -209,7 +209,7 @@ func (i *CommandInitOption) defaultEtcdInitContainerCommand() []string {
 		fmt.Sprintf("--cipher-suites=%s", etcdCipherSuites),
 		// 基于原有代码增加的
 		"--initial-cluster-token=etcd-cluster",
-		fmt.Sprintf("--initial-advertise-peer-urls=http://${%s}:%v", etcdEnvPodIP, etcdContainerServerPort),
+		fmt.Sprintf("--initial-advertise-peer-urls=http://$(%s):%v", etcdEnvPodIP, etcdContainerServerPort),
 		"--peer-client-cert-auth=false",
 		fmt.Sprintf("--peer-trusted-ca-file=%s/%s.crt", karmadaCertsVolumeMountPath, options.EtcdCaCertAndKeyName),
 		fmt.Sprintf("--peer-key-file=%s/%s.key", karmadaCertsVolumeMountPath, options.EtcdServerCertAndKeyName),
