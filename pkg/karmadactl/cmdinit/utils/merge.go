@@ -51,6 +51,7 @@ func preProcessArgs(args []string) []string {
 	if len(args) == 0 {
 		return args
 	}
+
 	// Pre-create a slice with capacity.
 	merged := make([]string, 0, len(args))
 	var last string
@@ -75,7 +76,6 @@ func preProcessArgs(args []string) []string {
 		merged = append(merged, last)
 	}
 	return merged
-
 }
 
 // Regular expression validation of user-provided parameters.
@@ -96,6 +96,7 @@ func validateArgs(args []string) ([]string, error) {
 func mergeCommandArgs(defaultArgs, extraArgs []string) []string {
 	extraArgsMap := make(map[string]string)
 	for _, arg := range extraArgs {
+
 		// Assuming extraArgs are already validated to start with "--" and be in --key=value or --key format
 		// SplitN with limit 2 handles cases like --key=value1=value2 correctly, taking only the first '=' as delimiter
 		parts := strings.SplitN(arg, "=", 2)
@@ -103,10 +104,12 @@ func mergeCommandArgs(defaultArgs, extraArgs []string) []string {
 		extraArgsMap[key] = arg // Store the full argument string
 	}
 	var finalArgs []string
+
 	// First, add the command name if defaultArgs is not empty.
 	if len(defaultArgs) > 0 {
 		finalArgs = append(finalArgs, defaultArgs[0])
 	}
+
 	// Add default arguments, skipping any that are overridden by extraArgs.
 	for _, arg := range defaultArgs[1:] {
 		parts := strings.SplitN(arg, "=", 2)
@@ -115,12 +118,15 @@ func mergeCommandArgs(defaultArgs, extraArgs []string) []string {
 			finalArgs = append(finalArgs, arg)
 		}
 	}
+
 	// Add all extra arguments. To ensure deterministic output for tests, sort them.
 	var sortedExtraArgs []string
 	for _, arg := range extraArgsMap {
 		sortedExtraArgs = append(sortedExtraArgs, arg)
 	}
+
 	sort.Strings(sortedExtraArgs)
 	finalArgs = append(finalArgs, sortedExtraArgs...)
+
 	return finalArgs
 }
