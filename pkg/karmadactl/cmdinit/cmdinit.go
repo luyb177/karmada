@@ -185,7 +185,6 @@ func NewCmdInit(parentCommand string) *cobra.Command {
 	flags.StringVar(&opts.KarmadaAggregatedAPIServerPriorityClass, "karmada-aggregated-apiserver-priority-class", "system-node-critical", "The priority class name for the component karmada-aggregated-apiserver.")
 
 	// extraArgs
-	// etcd todo  usage format
 	flags.StringSliceVar(&opts.EtcdExtraArgs, "etcd-extra-args", nil, "Extra arguments for etcd")
 	flags.StringSliceVar(&opts.KarmadaAPIServerExtraArgs, "karmada-apiserver-extra-args", nil, "Extra arguments for karmada-apiserver")
 	flags.StringSliceVar(&opts.KarmadaSchedulerExtraArgs, "karmada-scheduler-extra-args", nil, "Extra arguments for karmada-scheduler")
