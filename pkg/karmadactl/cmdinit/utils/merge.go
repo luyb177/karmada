@@ -96,7 +96,6 @@ func validateArgs(args []string) ([]string, error) {
 func mergeCommandArgs(defaultArgs, extraArgs []string) []string {
 	extraArgsMap := make(map[string]string)
 	for _, arg := range extraArgs {
-
 		// Assuming extraArgs are already validated to start with "--" and be in --key=value or --key format
 		// SplitN with limit 2 handles cases like --key=value1=value2 correctly, taking only the first '=' as delimiter
 		parts := strings.SplitN(arg, "=", 2)
