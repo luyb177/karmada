@@ -79,7 +79,7 @@ func (i *CommandInitOption) etcdServers() string {
 	return etcdClusterConfig
 }
 
-func (i *CommandInitOption) karmadaAPIServerContainerCommand() []string {
+func (i *CommandInitOption) defaultKarmadaAPIServerContainerCommand() []string {
 	var etcdServers string
 	if etcdServers = i.ExternalEtcdServers; etcdServers == "" {
 		etcdServers = strings.TrimRight(i.etcdServers(), ",")
@@ -190,7 +190,7 @@ func (i *CommandInitOption) makeKarmadaAPIServerDeployment() *appsv1.Deployment 
 			{
 				Name:    karmadaAPIServerDeploymentAndServiceName,
 				Image:   i.kubeAPIServerImage(),
-				Command: utils.KarmadaComponentCommand(i.karmadaAPIServerContainerCommand(), i.KarmadaAPIServerExtraArgs),
+				Command: utils.KarmadaComponentCommand(i.defaultKarmadaAPIServerContainerCommand(), i.KarmadaAPIServerExtraArgs),
 				Ports: []corev1.ContainerPort{
 					{
 						Name:          portName,
@@ -251,7 +251,7 @@ func (i *CommandInitOption) makeKarmadaAPIServerDeployment() *appsv1.Deployment 
 }
 
 // defaultArgs
-func (i *CommandInitOption) karmadaKubeControllerManagerContainerCommand() []string {
+func (i *CommandInitOption) defaultKarmadaKubeControllerManagerContainerCommand() []string {
 	return []string{
 		"kube-controller-manager",
 		"--allocate-node-cidrs=true",
@@ -332,7 +332,7 @@ func (i *CommandInitOption) makeKarmadaKubeControllerManagerDeployment() *appsv1
 			{
 				Name:          kubeControllerManagerClusterRoleAndDeploymentAndServiceName,
 				Image:         i.kubeControllerManagerImage(),
-				Command:       utils.KarmadaComponentCommand(i.karmadaKubeControllerManagerContainerCommand(), i.KubeControllerManagerExtraArgs),
+				Command:       utils.KarmadaComponentCommand(i.defaultKarmadaKubeControllerManagerContainerCommand(), i.KubeControllerManagerExtraArgs),
 				LivenessProbe: livenessProbe,
 				Ports: []corev1.ContainerPort{
 					{
@@ -401,7 +401,7 @@ func (i *CommandInitOption) makeKarmadaKubeControllerManagerDeployment() *appsv1
 	return kubeControllerManager
 }
 
-func (i *CommandInitOption) karmadaSchedulerContainerCommand() []string {
+func (i *CommandInitOption) defaultKarmadaSchedulerContainerCommand() []string {
 	return []string{
 		"/bin/karmada-scheduler",
 		fmt.Sprintf("--kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
@@ -483,7 +483,7 @@ func (i *CommandInitOption) makeKarmadaSchedulerDeployment() *appsv1.Deployment 
 						},
 					},
 				},
-				Command:       utils.KarmadaComponentCommand(i.karmadaSchedulerContainerCommand(), i.KarmadaSchedulerExtraArgs),
+				Command:       utils.KarmadaComponentCommand(i.defaultKarmadaSchedulerContainerCommand(), i.KarmadaSchedulerExtraArgs),
 				LivenessProbe: livenessProbe,
 				Ports: []corev1.ContainerPort{
 					{
@@ -555,7 +555,7 @@ func (i *CommandInitOption) makeKarmadaSchedulerDeployment() *appsv1.Deployment 
 	return scheduler
 }
 
-func (i *CommandInitOption) karmadaControllerMangerContainerCommand() []string {
+func (i *CommandInitOption) defaultKarmadaControllerManagerContainerCommand() []string {
 	return []string{
 		"/bin/karmada-controller-manager",
 		fmt.Sprintf("--kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
@@ -632,7 +632,7 @@ func (i *CommandInitOption) makeKarmadaControllerManagerDeployment() *appsv1.Dep
 						},
 					},
 				},
-				Command:       utils.KarmadaComponentCommand(i.karmadaControllerMangerContainerCommand(), i.KarmadaControllerManagerExtraArgs),
+				Command:       utils.KarmadaComponentCommand(i.defaultKarmadaControllerManagerContainerCommand(), i.KarmadaControllerManagerExtraArgs),
 				LivenessProbe: livenessProbe,
 				Ports: []corev1.ContainerPort{
 					{
@@ -695,7 +695,7 @@ func (i *CommandInitOption) makeKarmadaControllerManagerDeployment() *appsv1.Dep
 	return karmadaControllerManager
 }
 
-func (i *CommandInitOption) karmadaWebhookContainerCommand() []string {
+func (i *CommandInitOption) defaultKarmadaWebhookContainerCommand() []string {
 	return []string{
 		"/bin/karmada-webhook",
 		fmt.Sprintf("--kubeconfig=%s", filepath.Join(karmadaConfigVolumeMountPath, util.KarmadaConfigFieldName)),
@@ -771,7 +771,7 @@ func (i *CommandInitOption) makeKarmadaWebhookDeployment() *appsv1.Deployment {
 						},
 					},
 				},
-				Command: utils.KarmadaComponentCommand(i.karmadaWebhookContainerCommand(), i.KarmadaWebhookExtraArgs),
+				Command: utils.KarmadaComponentCommand(i.defaultKarmadaWebhookContainerCommand(), i.KarmadaWebhookExtraArgs),
 				Ports: []corev1.ContainerPort{
 					{
 						Name:          webhookPortName,
@@ -846,7 +846,7 @@ func (i *CommandInitOption) makeKarmadaWebhookDeployment() *appsv1.Deployment {
 	return webhook
 }
 
-func (i *CommandInitOption) karmadaAggregatedAPIServerContainerCommand() []string {
+func (i *CommandInitOption) defaultKarmadaAggregatedAPIServerContainerCommand() []string {
 	var etcdServers string
 	if etcdServers = i.ExternalEtcdServers; etcdServers == "" {
 		etcdServers = strings.TrimRight(i.etcdServers(), ",")
@@ -955,7 +955,7 @@ func (i *CommandInitOption) makeKarmadaAggregatedAPIServerDeployment() *appsv1.D
 						},
 					},
 				},
-				Command:        utils.KarmadaComponentCommand(i.karmadaAggregatedAPIServerContainerCommand(), i.KarmadaAggregatedAPIServerExtraArgs),
+				Command:        utils.KarmadaComponentCommand(i.defaultKarmadaAggregatedAPIServerContainerCommand(), i.KarmadaAggregatedAPIServerExtraArgs),
 				ReadinessProbe: readinesProbe,
 				LivenessProbe:  livenesProbe,
 				Resources: corev1.ResourceRequirements{
