@@ -30,8 +30,12 @@ func KarmadaComponentCommand(defaultArgs, extraArgs []string) []string {
 	if len(extraArgs) == 0 {
 		return defaultArgs
 	}
+
+	// 参数预处理
+	preprocessArgs := preProcessArgs(extraArgs)
+
 	// 校验参数
-	args, err := validateArgs(extraArgs)
+	args, err := validateArgs(preprocessArgs)
 	if err != nil {
 		klog.Errorf("%v", err)
 		return nil
@@ -41,8 +45,41 @@ func KarmadaComponentCommand(defaultArgs, extraArgs []string) []string {
 	return mergeCommandArgs(defaultArgs, args)
 }
 
+// 参数预处理 // 有 --key=v1,v2,v3
+func preProcessArgs(args []string) []string {
+	if len(args) == 0 {
+		return args
+	}
+	// 提前创建一个有容量的切片
+	merged := make([]string, 0, len(args))
+	var last string
+
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "--") {
+			if last != "" {
+				merged = append(merged, last)
+			}
+			last = arg
+		} else {
+			if last == "" {
+				// 说明是第一个参数，此时跳过并警告
+				klog.Warningf("argument %q ignored: no preceding --key found", arg)
+				continue
+			}
+			last += "," + arg
+		}
+	}
+
+	if last != "" {
+		merged = append(merged, last)
+	}
+	return merged
+
+}
+
 // 正则校验用户给的参数
 // format: --key=value
+
 func validateArgs(args []string) ([]string, error) {
 	argPattern := regexp.MustCompile(`^--[a-zA-Z0-9\-]+=(.*)?$`)
 	for _, arg := range args {
