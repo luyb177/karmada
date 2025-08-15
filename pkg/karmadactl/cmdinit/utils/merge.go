@@ -99,7 +99,7 @@ func validateArgs(args []string) ([]string, error) {
 // mergeCommandArgs merges defaultArgs with extraArgs, with extraArgs overriding defaults.
 // It assumes extraArgs are already pre-processed and validated.
 func mergeCommandArgs(defaultArgs, extraArgs []string) []string {
-	extraArgsMap := make(map[string]string)
+	extraArgsMap := make(map[string]string, len(extraArgs))
 	for _, arg := range extraArgs {
 		// Assuming extraArgs are already validated to start with "--" and be in --key=value or --key format
 		// SplitN with limit 2 handles cases like --key=value1=value2 correctly, taking only the first '=' as delimiter
@@ -107,7 +107,7 @@ func mergeCommandArgs(defaultArgs, extraArgs []string) []string {
 		key := parts[0]
 		extraArgsMap[key] = arg // Store the full argument string
 	}
-	var finalArgs []string
+	finalArgs := make([]string, 0, len(defaultArgs)+len(extraArgs))
 
 	// First, add the command name if defaultArgs is not empty.
 	if len(defaultArgs) > 0 {
@@ -124,7 +124,7 @@ func mergeCommandArgs(defaultArgs, extraArgs []string) []string {
 	}
 
 	// Add all extra arguments. To ensure deterministic output for tests, sort them.
-	var sortedExtraArgs []string
+	sortedExtraArgs := make([]string, 0, len(extraArgs))
 	for _, arg := range extraArgsMap {
 		sortedExtraArgs = append(sortedExtraArgs, arg)
 	}
