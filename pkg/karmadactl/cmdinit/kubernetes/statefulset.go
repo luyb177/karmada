@@ -149,7 +149,7 @@ func (i *CommandInitOption) defaultEtcdInitContainerCommand() []string {
 		fmt.Sprintf("--data-dir=%s", etcdContainerDataVolumeMountPath),
 		"--snapshot-count=10000",
 		fmt.Sprintf("--cipher-suites=%s", etcdCipherSuites),
-		// 基于原有代码增加的
+		// Added based on the original code.
 		"--initial-cluster-token=etcd-cluster",
 		fmt.Sprintf("--initial-advertise-peer-urls=http://$(%s):%v", etcdEnvPodIP, etcdContainerServerPort),
 		"--peer-client-cert-auth=false",
