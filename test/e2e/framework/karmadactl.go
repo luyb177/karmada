@@ -63,6 +63,7 @@ func NewTestKubeconfig(kubeConfig, karmadaContext, karmadactlpath, namespace str
 }
 
 // KarmadactlCmd runs the karmadactl executable through the wrapper script.
+// KarmadactlCmd 通过包装脚本运行karmadactl可执行文件。
 func (tk *TestKubeconfig) KarmadactlCmd(args ...string) *exec.Cmd {
 	var defaultArgs []string
 
