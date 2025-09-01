@@ -26,7 +26,7 @@ set -o pipefail
 
 KUBECONFIG_PATH=${KUBECONFIG_PATH:-"${HOME}/.kube"}
 HOST_KUBECONFIG=${HOST_KUBECONFIG:-"$KUBECONFIG_PATH/karmada.config"}
-
+MEMBER_KUBECONFIG=${MEMBER_KUBECONFIG:-"${KUBECONFIG_PATH}/members.config"}
 # RUNNING_ON_KIND indicates if current testing against on a kind cluster.
 # Defaults to true.
 # For kind cluster, the kind related logs will be collected after the testing.
@@ -42,7 +42,7 @@ GO111MODULE=on go install github.com/onsi/ginkgo/v2/ginkgo
 
 # Run e2e
 export KUBECONFIG=${HOST_KUBECONFIG}
-
+export MEMBER_KUBECONFIG=${MEMBER_KUBECONFIG}
 set +e
 ginkgo -v --race --trace --fail-fast -p --randomize-all ./test/e2e/suites/operator
 TESTING_RESULT=$?

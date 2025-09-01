@@ -19,13 +19,10 @@ package base
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
-
-	"github.com/karmada-io/karmada/pkg/util/names"
-	"github.com/karmada-io/karmada/test/e2e/framework"
-	"github.com/karmada-io/karmada/test/helper"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -36,236 +33,196 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
-)
 
-//
-//// TempCluster 临时集群结构体
-//type TempCluster struct {
-//	Provider         *cluster.Provider
-//	Name             string
-//	Context          string
-//	KubeConfig       string
-//	Client           kubernetes.Interface
-//	KarmadaNamespace string
-//}
-//
-//func NewTempCluster() *TempCluster {
-//	tc := &TempCluster{
-//		Provider:         cluster.NewProvider(),
-//		Name:             fmt.Sprintf("karmadactltest-%s", rand.String(RandomStrLength)),
-//		KarmadaNamespace: fmt.Sprintf("karmadactltest-%s", rand.String(RandomStrLength)),
-//	}
-//	tc.Context = fmt.Sprintf("kind-%s", tc.Name)
-//
-//	// 使用临时的 kubeconfig 文件
-//	tempDir := os.TempDir()
-//	tc.KubeConfig = fmt.Sprintf("%s/%s.config", tempDir, tc.Name)
-//
-//	return tc
-//}
-//
-//// SetUp 设置临时集群
-//func (tc *TempCluster) SetUp() {
-//	ginkgo.By(fmt.Sprintf("创建临时集群 %s", tc.Name), func() {
-//		err := createCluster(tc.Name, tc.KubeConfig, fmt.Sprintf("%s-control-plane", tc.Name), tc.Context)
-//		gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
-//	})
-//
-//	ginkgo.By("初始化集群客户端", func() {
-//		config, err := framework.LoadRESTClientConfig(tc.KubeConfig, tc.Context)
-//		gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
-//
-//		tc.Client, err = kubernetes.NewForConfig(config)
-//		gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
-//	})
-//
-//	ginkgo.By(fmt.Sprintf("创建命名空间 %s", tc.KarmadaNamespace), func() {
-//		namespaceObj := helper.NewNamespace(tc.KarmadaNamespace)
-//		framework.CreateNamespace(tc.Client, namespaceObj)
-//	})
-//}
-//
-//// CleanUp 清理临时集群
-//func (tc *TempCluster) CleanUp() {
-//	ginkgo.By(fmt.Sprintf("清理临时集群 %s", tc.Name), func() {
-//		if tc.Provider != nil && tc.Name != "" {
-//			err := deleteCluster(tc.Name, tc.KubeConfig)
-//			gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
-//		}
-//
-//		// 删除临时文件
-//		if tc.KubeConfig != "" {
-//			os.Remove(tc.KubeConfig)
-//		}
-//	})
-//}
-////
-////// ExecKarmadactlInit 执行 karmadactl init 命令
-////func (tc *TempCluster) ExecKarmadactlInit(args ...string) {
-////	ginkgo.By("执行 karmadactl init 命令", func() {
-////		baseArgs := []string{
-////			"init",
-////			"--namespace", tc.KarmadaNamespace,
-////		}
-////		allArs := append(baseArgs, args...)
-////
-////		cmd := framework.NewKarmadactlCommand(
-////			tc.KubeConfig,
-////			"",
-////			karmadactlPath,
-////			"",
-////			KarmadactlInitTimeOut,
-////			allArs...,
-////		)
-////		_, err := cmd.ExecOrDie()
-////		gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
-////	})
-////}
-////
-////// WaitForComponent 等待 Deployment StatefulSet Pod 组件就绪
-////func (tc *TempCluster) WaitForComponent(componentType string, componentName string, selector string) {
-////	ginkgo.By(fmt.Sprintf("等待 %s %s 就绪", componentType, componentName), func() {
-////		gomega.Eventually(func() bool {
-////			switch componentType {
-////			case "deployment":
-////				deployment, err := tc.Client.AppsV1().Deployments(tc.KarmadaNamespace).
-////					Get(context.TODO(), componentName, metav1.GetOptions{})
-////				if err != nil {
-////					ginkgo.GinkgoLogr.Info("Deployment Component Not Found", "component", componentName)
-////					return false
-////				}
-////
-////				// 确保副本与期望副本数一致
-////				if deployment.Status.ReadyReplicas != *deployment.Spec.Replicas {
-////					return false
-////				}
-////
-////			case "statefulset":
-////				statefulSet, err := tc.Client.AppsV1().StatefulSets(tc.KarmadaNamespace).
-////					Get(context.TODO(), componentName, metav1.GetOptions{})
-////				if err != nil {
-////					ginkgo.GinkgoLogr.Info("StatefulSet Component Not Found", "component", componentName)
-////					return false
-////				}
-////				if statefulSet.Status.ReadyReplicas != *statefulSet.Spec.Replicas {
-////					return false
-////				}
-////
-////			default:
-////				return false
-////			}
-////
-////			// 检查 Pods
-////			pods, err := tc.Client.CoreV1().Pods(tc.KarmadaNamespace).
-////				List(context.TODO(), metav1.ListOptions{
-////					LabelSelector: selector,
-////				})
-////			if err != nil || len(pods.Items) == 0 {
-////				return false
-////			}
-////
-////			for _, pod := range pods.Items {
-////				if pod.Status.Phase != corev1.PodRunning {
-////					return false
-////				}
-////			}
-////			return true
-////		}, pollTimeout*2, pollInterval).Should(gomega.Equal(true))
-////	})
-////}
-//
-//var _ = ginkgo.Describe("Karmadactl Init Testing", func() {
-//	var tempCluster *TempCluster
-//
-//	ginkgo.Context("Test Karmadactl Init 自定义控制面板", func() {
-//		ginkgo.BeforeEach(func() {
-//			// 创建和设置临时集群
-//			tempCluster = NewTempCluster()
-//			tempCluster.SetUp()
-//		})
-//
-//		// 暂时不清理，方便测试失败查看为什么
-//		//ginkgo.AfterEach(func() {
-//		//	if tempCluster != nil {
-//		//		tempCluster.CleanUp()
-//		//	}
-//		//})
-//
-//		ginkgo.It("Test 自定义控制面板组件 - karmada-api-server", func() {
-//
-//			// step1 执行命令
-//			//tempCluster.ExecKarmadactlInit(
-//			//	"--karmada-apiserver-extra-args", "--tls-min-version=VersionTLS12",
-//			//	"--karmada-apiserver-extra-args", "--audit-log-path=-",
-//			//)
-//
-//			// step2 检查启动参数
-//			ginkgo.By("检查 Deployment 是否有对应参数", func() {
-//				gomega.Eventually(func() bool {
-//					deployment, err := tempCluster.Client.AppsV1().Deployments(tempCluster.KarmadaNamespace).
-//						Get(context.TODO(), "karmada-apiserver", metav1.GetOptions{})
-//					if err != nil {
-//						return false
-//					}
-//
-//					if len(deployment.Spec.Template.Spec.Containers) == 0 {
-//						return false
-//					}
-//
-//					commands := deployment.Spec.Template.Spec.Containers[0].Command
-//
-//					hasTLSVersion := false
-//					hasAuditPath := false
-//
-//					for _, arg := range commands {
-//						if strings.Contains(arg, "--tls-min-version=VersionTLS12") {
-//							hasTLSVersion = true
-//						}
-//						if strings.Contains(arg, "--audit-log-path=-") {
-//							hasAuditPath = true
-//						}
-//					}
-//
-//					return hasTLSVersion && hasAuditPath
-//				}, pollTimeout, pollInterval).Should(gomega.Equal(true))
-//
-//				// step3 等待组件就绪
-//				//tempCluster.WaitForComponent("deployment", "karmada-apiserver", "app=karmada-apiserver")
-//
-//			})
-//		})
-//	})
-//})
+	"github.com/karmada-io/karmada/pkg/util/names"
+	"github.com/karmada-io/karmada/test/e2e/framework"
+	"github.com/karmada-io/karmada/test/helper"
+)
 
 const (
 	KarmadactlInitTimeOut = time.Minute * 10
 )
 
-var (
-	memberKubeconfig = "/root/.kube/members.config" // todo 先写死，后期看怎么改成环境变量
-	hostKubeconfig   = "/root/.kube/karmada.config"
+// ComponentType defines the type of Kubernetes resource
+type ComponentType string
+
+const (
+	ComponentTypeDeployment  ComponentType = "deployment"
+	ComponentTypeStatefulSet ComponentType = "statefulset"
 )
+
+// ComponentConfig holds configuration for a Karmada component
+type ComponentConfig struct {
+	Name      string
+	Type      ComponentType
+	Flag      string
+	ExtraArgs []string
+	Selector  string
+}
+
+// KarmadaComponents holds all component configurations
+type KarmadaComponents struct {
+	LocalEtcd                  ComponentConfig
+	KarmadaAPIServer           ComponentConfig
+	KarmadaAggregatedAPIServer ComponentConfig
+	KubeControllerManager      ComponentConfig
+	KarmadaControllerManager   ComponentConfig
+	KarmadaScheduler           ComponentConfig
+	KarmadaWebhook             ComponentConfig
+}
+
+// NewKarmadaComponents creates a new instance of KarmadaComponents with default configurations
+func NewKarmadaComponents() *KarmadaComponents {
+	return &KarmadaComponents{
+		LocalEtcd: ComponentConfig{
+			Name:      "etcd",
+			Type:      ComponentTypeStatefulSet,
+			Flag:      "--etcd-extra-args",
+			ExtraArgs: []string{"--snapshot-count=5000", "--heartbeat-interval=100"},
+			Selector:  "app=etcd",
+		},
+		KarmadaAPIServer: ComponentConfig{
+			Name:      "karmada-apiserver",
+			Type:      ComponentTypeDeployment,
+			Flag:      "--karmada-apiserver-extra-args",
+			ExtraArgs: []string{"--tls-min-version=VersionTLS12", "--audit-log-path=-"},
+			Selector:  "app=karmada-apiserver",
+		},
+		KarmadaAggregatedAPIServer: ComponentConfig{
+			Name: "karmada-aggregated-apiserver",
+			Type: ComponentTypeDeployment,
+			Flag: "--karmada-aggregated-apiserver-extra-args",
+			ExtraArgs: []string{
+				"--tls-min-version=VersionTLS12",
+				"--audit-log-maxbackup=10",
+				"--v=2",
+				"--enable-pprof",
+			},
+			Selector: "app=karmada-aggregated-apiserver",
+		},
+		KubeControllerManager: ComponentConfig{
+			Name: "kube-controller-manager",
+			Type: ComponentTypeDeployment,
+			Flag: "--kube-controller-manager-extra-args",
+			ExtraArgs: []string{
+				"--v=2",
+				"--node-monitor-grace-period=50s",
+				"--node-monitor-period=5s",
+			},
+			Selector: "app=kube-controller-manager",
+		},
+		KarmadaControllerManager: ComponentConfig{
+			Name: "karmada-controller-manager",
+			Type: ComponentTypeDeployment,
+			Flag: "--karmada-controller-manager-extra-args",
+			ExtraArgs: []string{
+				"--v=2",
+				"--enable-pprof",
+				"--skipped-propagating-namespaces=kube-system,default,my-ns",
+				"--vmodule=scheduler*=3,controller*=2",
+			},
+			Selector: "app=karmada-controller-manager",
+		},
+		KarmadaScheduler: ComponentConfig{
+			Name: "karmada-scheduler",
+			Type: ComponentTypeDeployment,
+			Flag: "--karmada-scheduler-extra-args",
+			ExtraArgs: []string{
+				"--v=2",
+				"--enable-pprof",
+				"--scheduler-name=test-scheduler",
+			},
+			Selector: "app=karmada-scheduler",
+		},
+		KarmadaWebhook: ComponentConfig{
+			Name:      "karmada-webhook",
+			Type:      ComponentTypeDeployment,
+			Flag:      "--karmada-webhook-extra-args",
+			ExtraArgs: []string{"--v=2", "--enable-pprof"},
+			Selector:  "app=karmada-webhook",
+		},
+	}
+}
+
+// AllComponents returns all component configurations
+func (kc *KarmadaComponents) AllComponents() []ComponentConfig {
+	return []ComponentConfig{
+		kc.LocalEtcd,
+		kc.KarmadaAPIServer,
+		kc.KarmadaAggregatedAPIServer,
+		kc.KubeControllerManager,
+		kc.KarmadaControllerManager,
+		kc.KarmadaScheduler,
+		kc.KarmadaWebhook,
+	}
+}
+
+// GetAllExtraArgs returns all extra arguments for karmadactl init command
+func (kc *KarmadaComponents) GetAllExtraArgs() []string {
+	var allArgs []string
+	for _, comp := range kc.AllComponents() {
+		allArgs = append(allArgs, wrapArgs(comp.Flag, comp.ExtraArgs...)...)
+	}
+	return allArgs
+}
+
+// KarmadaTestContext holds the test context
+type KarmadaTestContext struct {
+	MemberKubeconfig string
+	Components       *KarmadaComponents
+}
+
+// NewKarmadaTestContext creates a new test context
+func NewKarmadaTestContext() *KarmadaTestContext {
+	memberKubeconfig := os.Getenv("MEMBER_KUBECONFIG") // Set as an environment variable.
+	if memberKubeconfig == "" {
+		memberKubeconfig = "/root/.kube/members.config"
+		klog.Infof("The environment variable MEMBER_KUBECONFIG is not set, using the default path: %s", memberKubeconfig)
+	} else {
+		klog.Infof("Use the environment variable MEMBER_KUBECONFIG: %s", memberKubeconfig)
+	}
+
+	// Verify if the kubeconfig file exists.
+	if _, err := os.Stat(memberKubeconfig); os.IsNotExist(err) {
+		klog.Warningf("The kubeconfig file does not exist: %s", memberKubeconfig)
+	} else {
+		klog.Infof("The kubeconfig file exists: %s", memberKubeconfig)
+	}
+
+	return &KarmadaTestContext{
+		MemberKubeconfig: memberKubeconfig,
+		Components:       NewKarmadaComponents(),
+	}
+}
+
 var _ = ginkgo.Describe("Karmadactl Init Testing", func() {
-	var member1 string
-	var member1Client kubernetes.Interface
+	var (
+		testCtx       *KarmadaTestContext
+		member1       string
+		member1Client kubernetes.Interface
+	)
 
 	ginkgo.BeforeEach(func() {
-		// 验证所有集群上下文是否存在
-		availableContexts := getAvailableContexts()
-		klog.Infof("可用上下文: %v", availableContexts)
+		testCtx = NewKarmadaTestContext()
+
+		// Verify whether all cluster contexts exist.
+		availableContexts := testCtx.getAvailableContexts()
+		klog.Infof("Available context: %v", availableContexts)
 
 		member1 = framework.ClusterNames()[0]
+		klog.Infof("Select member cluster: %s", member1)
 		if !contains(availableContexts, member1) {
-			ginkgo.Fail(fmt.Sprintf("集群 %s 的上下文不存在于 kubeconfig 中", member1))
+			ginkgo.Fail(fmt.Sprintf("The context for cluster %s does not exist in the kubeconfig.", member1))
 		}
-		klog.Infof("使用集群: %s", member1)
+
+		klog.Infof("Successfully selected member cluster: %s", member1)
 
 		member1Client = framework.GetClusterClient(member1)
 		defaultConfigFlags := genericclioptions.NewConfigFlags(true).WithDeprecatedPasswordFlag().WithDiscoveryBurst(300).WithDiscoveryQPS(50.0)
 		defaultConfigFlags.Context = &karmadaContext
 	})
 
-	ginkgo.Context("Test Karmadactl init 自定义控制平面", func() {
+	ginkgo.Context("Test Karmadactl init Custom Control Plane", func() {
 		var namespace string
 
 		ginkgo.BeforeEach(func() {
@@ -273,157 +230,305 @@ var _ = ginkgo.Describe("Karmadactl Init Testing", func() {
 		})
 
 		ginkgo.AfterEach(func() {
-			namespaceGVK := schema.GroupVersionKind{
-				Group:   "",
-				Version: "v1",
-				Kind:    "Namespace",
-			}
-
-			cppName := names.GeneratePolicyName("", namespace, namespaceGVK.String())
-
-			framework.RemoveNamespace(member1Client, namespace)
-			framework.RemoveClusterPropagationPolicy(karmadaClient, cppName)
+			testCtx.cleanup(member1Client, namespace)
 		})
 
-		ginkgo.It("Test 自定义控制平面 - karmada-api-server", func() {
-			// step1 在成员集群1创建命名空间
-			ginkgo.By(fmt.Sprintf("在成员集群%s创建命名空间%s", member1, namespace), func() {
+		ginkgo.It("Test Custom Control Plane —— All Component", func() {
+			// step1 Create a namespace in the member1 cluster.
+			ginkgo.By(fmt.Sprintf("Creating namespace %s in member cluster %s", member1, namespace), func() {
 				namespaceObj := helper.NewNamespace(namespace)
 				framework.CreateNamespace(member1Client, namespaceObj)
 			})
 
-			// step2 执行命令
-			ExecKarmadactlInit(member1, namespace,
-				`--karmada-apiserver-extra-args="--tls-min-version=VersionTLS12"`,
-				`--karmada-apiserver-extra-args="--audit-log-path=-"`,
-			)
+			// step2 Execute command
+			testCtx.execKarmadactlInit(member1, namespace, testCtx.Components.GetAllExtraArgs()...)
 
-			// step3 检查启动参数
-			ginkgo.By("检查 Deployment 是否有对应参数", func() {
-				gomega.Eventually(func() bool {
-					deployment, err := member1Client.AppsV1().Deployments(namespace).
-						Get(context.TODO(), "karmada-apiserver", metav1.GetOptions{})
-					if err != nil {
-						return false
-					}
+			// step3 Check startup parameters.
+			testCtx.checkAllComponentStatus(member1Client, namespace)
 
-					if len(deployment.Spec.Template.Spec.Containers) == 0 {
-						return false
-					}
-
-					commands := deployment.Spec.Template.Spec.Containers[0].Command
-
-					hasTLSVersion := false
-					hasAuditPath := false
-
-					for _, arg := range commands {
-						if strings.Compare(arg, "--tls-min-version=VersionTLS12") == 0 {
-							klog.Infof("存在参数 --tls-min-version=VersionTLS12")
-							hasTLSVersion = true
-						}
-						if strings.Compare(arg, "--audit-log-path=-") == 0 {
-							klog.Infof("存在参数 --audit-log-path=-")
-							hasAuditPath = true
-						}
-					}
-
-					return hasTLSVersion && hasAuditPath
-				}, pollTimeout, pollInterval).Should(gomega.Equal(true))
-
-				// step4 等待组件就绪
-				WaitForComponent(member1Client, namespace, "deployment", "karmada-apiserver", "app=karmada-apiserver")
-
-			})
-
+			// step4 Waiting for components to be ready.
+			testCtx.waitForAllComponents(member1Client, namespace)
 		})
 	})
-
 })
 
-// ExecKarmadactlInit 执行 karmadactl init 命令
-func ExecKarmadactlInit(clusterName, namespace string, args ...string) {
-	ginkgo.By("执行 karmadactl init 命令", func() {
-		// 保存当前上下文
-		currentContext := getCurrentContext()
-		defer restoreContext(currentContext) // 执行完成后恢复上下文
+// cleanup handles the test cleanup
+func (ctx *KarmadaTestContext) cleanup(client kubernetes.Interface, namespace string) {
+	namespaceGVK := schema.GroupVersionKind{
+		Group:   "",
+		Version: "v1",
+		Kind:    "Namespace",
+	}
 
-		// 切换到目标集群上下文
-		switchToClusterContext(clusterName)
+	cppName := names.GeneratePolicyName("", namespace, namespaceGVK.String())
 
-		baseArgs := []string{
-			"init",
-			"--namespace", namespace,
-		}
-		allArs := append(baseArgs, args...)
+	framework.RemoveNamespace(client, namespace)
+	framework.RemoveClusterPropagationPolicy(karmadaClient, cppName)
+}
+
+// execKarmadactlInit Execute the command karmadactl init.
+func (ctx *KarmadaTestContext) execKarmadactlInit(clusterName, namespace string, args ...string) {
+	ginkgo.By("Execute the command karmadactl init.", func() {
+		// Switch the specified cluster context
+		contextManager := NewContextManager(ctx.MemberKubeconfig)
+		defer contextManager.Restore()
+
+		contextManager.SwitchTo(clusterName)
+
+		baseArgs := []string{"init", "--namespace", namespace}
+		allArgs := append(baseArgs, args...)
+
 		cmd := framework.NewKarmadactlCommand(
-			memberKubeconfig,
+			ctx.MemberKubeconfig,
 			"",
 			karmadactlPath,
 			"",
 			KarmadactlInitTimeOut,
-			allArs...,
+			allArgs...,
 		)
 		_, err := cmd.ExecOrDie()
 		gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
-
 	})
 }
 
-// WaitForComponent 等待 Deployment StatefulSet Pod 组件就绪
-func WaitForComponent(member1Client kubernetes.Interface, namespace string, componentType string, componentName string, selector string) {
-	ginkgo.By(fmt.Sprintf("等待 %s %s 就绪", componentType, componentName), func() {
+// checkAllComponentStatus Check the status of all components.
+func (ctx *KarmadaTestContext) checkAllComponentStatus(client kubernetes.Interface, namespace string) {
+	componentCount := len(ctx.Components.AllComponents())
+	klog.Infof("Total number of components to be checked: %d", componentCount)
+
+	for i, comp := range ctx.Components.AllComponents() {
+		klog.Infof("Check component progress: %d/%d - %s", i+1, componentCount, comp.Name)
+		ctx.checkComponentStatus(client, namespace, comp)
+	}
+	klog.Infof("All component status checks are complete.")
+}
+
+// checkComponentStatus Check the status of a single component.
+func (ctx *KarmadaTestContext) checkComponentStatus(client kubernetes.Interface, namespace string, comp ComponentConfig) {
+	ginkgo.By(fmt.Sprintf("Detecting %s: %s launch parameters", comp.Type, comp.Name), func() {
 		gomega.Eventually(func() bool {
-			switch componentType {
-			case "deployment":
-				deployment, err := member1Client.AppsV1().Deployments(namespace).
-					Get(context.TODO(), componentName, metav1.GetOptions{})
-				if err != nil {
-					//ginkgo.GinkgoLogr.Info("Deployment Component Not Found", "component", componentName)
-					klog.Infof("Deployment Component %s Not Found, err %v", componentName, err)
-					return false
-				}
-
-				// 确保副本与期望副本数一致
-				if deployment.Status.ReadyReplicas != *deployment.Spec.Replicas {
-					return false
-				}
-
-			case "statefulset":
-				statefulSet, err := member1Client.AppsV1().StatefulSets(namespace).
-					Get(context.TODO(), componentName, metav1.GetOptions{})
-				if err != nil {
-					//ginkgo.GinkgoLogr.Info("StatefulSet Component Not Found", "component", componentName)
-					klog.Infof("StatefulSet Component %s Not Found,err %v ", componentName, err)
-					return false
-				}
-				if statefulSet.Status.ReadyReplicas != *statefulSet.Spec.Replicas {
-					return false
-				}
+			if len(comp.ExtraArgs) == 0 {
+				klog.Infof("Component %s has no additional parameters to check.", comp.Name)
+				return true
 			}
 
-			// 检查 Pods
-			pods, err := member1Client.CoreV1().Pods(namespace).
-				List(context.TODO(), metav1.ListOptions{
-					LabelSelector: selector,
-				})
-			if err != nil || len(pods.Items) == 0 {
+			commands, err := ctx.getComponentCommands(client, namespace, comp)
+			if err != nil {
 				return false
 			}
 
-			for _, pod := range pods.Items {
-				if pod.Status.Phase != corev1.PodRunning {
-					return false
-				}
-			}
-			return true
-		}, pollTimeout*2, pollInterval).Should(gomega.Equal(true))
+			return ctx.validateExtraArgs(comp.Name, commands, comp.ExtraArgs)
+		}, pollTimeout, pollInterval).Should(gomega.Equal(true))
 	})
 }
 
-// getCurrentContext 获取当前成员上下文
-func getCurrentContext() string {
+// getComponentCommands retrieves the command arguments for a component
+func (ctx *KarmadaTestContext) getComponentCommands(client kubernetes.Interface, namespace string, comp ComponentConfig) ([]string, error) {
+	// Get the component object based on the component type.
+	switch comp.Type {
+	case ComponentTypeDeployment:
+		deployment, err := client.AppsV1().Deployments(namespace).
+			Get(context.TODO(), comp.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+
+		if len(deployment.Spec.Template.Spec.Containers) == 0 {
+			return nil, fmt.Errorf("no containers found in deployment %s", comp.Name)
+		}
+
+		return deployment.Spec.Template.Spec.Containers[0].Command, nil
+
+	case ComponentTypeStatefulSet:
+		statefulset, err := client.AppsV1().StatefulSets(namespace).
+			Get(context.TODO(), comp.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+
+		if len(statefulset.Spec.Template.Spec.Containers) == 0 {
+			return nil, fmt.Errorf("no containers found in statefulset %s", comp.Name)
+		}
+
+		return statefulset.Spec.Template.Spec.Containers[0].Command, nil
+
+	default:
+		return nil, fmt.Errorf("unsupported component type: %s", comp.Type)
+	}
+}
+
+// validateExtraArgs validates that all expected extra arguments are present
+func (ctx *KarmadaTestContext) validateExtraArgs(component string, commands, expectedArgs []string) bool {
+	flags := make(map[string]bool, len(expectedArgs))
+	for _, arg := range expectedArgs {
+		flags[arg] = false
+	}
+
+	for _, cmd := range commands {
+		if _, exists := flags[cmd]; exists {
+			flags[cmd] = true
+		}
+	}
+
+	for _, found := range flags {
+		if !found {
+			return false
+		}
+	}
+	klog.Infof("The startup parameters for %s are normal.", component)
+	return true
+}
+
+// waitForAllComponents Wait for all components to be ready.
+func (ctx *KarmadaTestContext) waitForAllComponents(client kubernetes.Interface, namespace string) {
+	componentCount := len(ctx.Components.AllComponents())
+	klog.Infof("Total number of components to wait for: %d", componentCount)
+	for i, comp := range ctx.Components.AllComponents() {
+		klog.Infof("Waiting for component progress: %d/%d - %s", i+1, componentCount, comp.Name)
+		ctx.waitForComponent(client, namespace, comp)
+	}
+	klog.Infof("All components are ready.")
+}
+
+// waitForComponent Waiting for a single component to be ready.
+func (ctx *KarmadaTestContext) waitForComponent(client kubernetes.Interface, namespace string, comp ComponentConfig) {
+	ginkgo.By(fmt.Sprintf("Waiting for %s %s to be ready", comp.Type, comp.Name), func() {
+		gomega.Eventually(func() bool {
+			// Check resource readiness
+			if !ctx.isResourceReady(client, namespace, comp) {
+				return false
+			}
+			klog.Infof("Component %s Resource ready", comp.Name)
+
+			// Check pods readiness
+			if ctx.arePodsReady(client, namespace, comp.Selector) {
+				klog.Infof("Component %s pods are ready.", comp.Name)
+				return true
+			}
+			return false
+		}, pollTimeout, pollInterval).Should(gomega.Equal(true))
+	})
+}
+
+// isResourceReady checks if the Kubernetes resource (Deployment/StatefulSet) is ready
+func (ctx *KarmadaTestContext) isResourceReady(client kubernetes.Interface, namespace string, comp ComponentConfig) bool {
+	switch comp.Type {
+	case ComponentTypeDeployment:
+		deployment, err := client.AppsV1().Deployments(namespace).
+			Get(context.TODO(), comp.Name, metav1.GetOptions{})
+		if err != nil {
+			klog.Infof("Deployment Component %s Not Found, err %v", comp.Name, err)
+			return false
+		}
+		return deployment.Status.ReadyReplicas == *deployment.Spec.Replicas
+
+	case ComponentTypeStatefulSet:
+		statefulSet, err := client.AppsV1().StatefulSets(namespace).
+			Get(context.TODO(), comp.Name, metav1.GetOptions{})
+		if err != nil {
+			klog.Infof("StatefulSet Component %s Not Found, err %v", comp.Name, err)
+			return false
+		}
+		return statefulSet.Status.ReadyReplicas == *statefulSet.Spec.Replicas
+
+	default:
+		return false
+	}
+}
+
+// arePodsReady checks if all pods matching the selector are running
+func (ctx *KarmadaTestContext) arePodsReady(client kubernetes.Interface, namespace, selector string) bool {
+	pods, err := client.CoreV1().Pods(namespace).
+		List(context.TODO(), metav1.ListOptions{LabelSelector: selector})
+	if err != nil || len(pods.Items) == 0 {
+		return false
+	}
+
+	for _, pod := range pods.Items {
+		if pod.Status.Phase != corev1.PodRunning {
+			return false
+		}
+	}
+	return true
+}
+
+// ContextManager handles kubectl context operations
+type ContextManager struct {
+	kubeconfig      string
+	originalContext string
+}
+
+// NewContextManager creates a new context manager
+func NewContextManager(kubeconfig string) *ContextManager {
+	return &ContextManager{
+		kubeconfig:      kubeconfig,
+		originalContext: getCurrentContext(kubeconfig),
+	}
+}
+
+// SwitchTo switches to the specified context
+func (cm *ContextManager) SwitchTo(clusterName string) {
+	ginkgo.By(fmt.Sprintf("Switching to the context of cluster %s", clusterName), func() {
+		if cm.originalContext == clusterName {
+			klog.Infof("The target context is the same as the current context, no need to switch. %s", clusterName)
+			return
+		}
+
+		// #nosec G204
+		cmd := exec.Command("kubectl", "config", "use-context", clusterName,
+			"--kubeconfig="+cm.kubeconfig)
+
+		output, err := cmd.Output()
+		gomega.Expect(err).ShouldNot(gomega.HaveOccurred(), "Failed to switch context")
+		klog.Infof("switchToClusterContext success, output: %s", string(output))
+
+		cm.verifyContextSwitch(clusterName)
+	})
+}
+
+// verifyContextSwitch verifies that the context switch was successful
+func (cm *ContextManager) verifyContextSwitch(expectedContext string) {
+	actualContext := getCurrentContext(cm.kubeconfig)
+	gomega.Expect(actualContext).To(gomega.Equal(expectedContext),
+		fmt.Sprintf("Failed to switch cluster context, expected %s but got %s.", expectedContext, actualContext))
+}
+
+// Restore restores the original context
+func (cm *ContextManager) Restore() {
+	if cm.originalContext == "" {
+		klog.Warning("The original context is empty and cannot be restored.")
+		return
+	}
+
+	if cm.originalContext == "karmada-host" || cm.originalContext == "karmada-apiserver" {
+		klog.Infof("No need to restore as the context in the kubeconfig has not been modified.")
+		return
+	}
+
+	currentContext := getCurrentContext(cm.kubeconfig)
+	if currentContext == cm.originalContext {
+		klog.Infof("The current context is already the original context, no need to restore it. %s", cm.originalContext)
+		return
+	}
+
+	ginkgo.By(fmt.Sprintf("Restore to the original context %s", cm.originalContext), func() {
+		// #nosec G204
+		cmd := exec.Command("kubectl", "config", "use-context", cm.originalContext,
+			"--kubeconfig="+cm.kubeconfig)
+		output, err := cmd.Output()
+		if err != nil {
+			klog.Errorf("restoreContext error: %v", err)
+		} else {
+			klog.Infof("restoreContext success, output: %s", string(output))
+		}
+	})
+}
+
+// getCurrentContext Get the current context.
+func getCurrentContext(kubeconfig string) string {
+	// #nosec G204
 	cmd := exec.Command("kubectl", "config", "current-context",
-		"--kubeconfig="+memberKubeconfig)
+		"--kubeconfig="+kubeconfig)
 	output, err := cmd.Output()
 	if err != nil {
 		klog.Errorf("getCurrentContext error: %v", err)
@@ -434,61 +539,11 @@ func getCurrentContext() string {
 	return currentContext
 }
 
-// switchToClusterContext 切换到成员集群的context
-func switchToClusterContext(clusterName string) {
-	ginkgo.By(fmt.Sprintf("切换到集群%s的context", clusterName), func() {
-		cmd := exec.Command("kubectl", "config", "use-context", clusterName,
-			"--kubeconfig="+memberKubeconfig)
-
-		output, err := cmd.Output()
-		if err != nil {
-			klog.Errorf("switchToClusterContext error: %v", err)
-			return
-		}
-		klog.Infof("switchToClusterContext success, output: %s", string(output))
-
-		// 验证切换是否成功
-		verifyContextSwitch(clusterName)
-	})
-}
-
-// verifyContextSwitch 验证切换是否成功
-func verifyContextSwitch(expectedContext string) {
-	actualContext := getCurrentContext()
-	gomega.Expect(actualContext).To(gomega.Equal(expectedContext), fmt.Sprintf("切换集群context失败，期望 %s 实际 %s", expectedContext, actualContext))
-}
-
-// restoreContext 恢复到原始的context
-func restoreContext(originalContext string) {
-	if originalContext == "" {
-		klog.Warning("原始context为空，无法恢复")
-		return
-	}
-
-	ginkgo.By(fmt.Sprintf("恢复到原始context %s", originalContext), func() {
-
-		if originalContext == "karmada-host" || originalContext == "karmada-apiserver" {
-			// 因为 switchToClusterContext 修改上下文也只是修改 memberKubeconfig 里面的，所以这里 默认的 kubeconfig的 上下文是没有切换的
-			klog.Infof("因未修改该 kubeconfig 中的 context，无需恢复")
-			return
-		}
-
-		cmd := exec.Command("kubectl", "config", "use-context", originalContext,
-			"--kubeconfig="+memberKubeconfig)
-		output, err := cmd.Output()
-		if err != nil {
-			klog.Errorf("restoreContext error: %v", err)
-		} else {
-			klog.Infof("restoreContext success, output: %s", string(output))
-		}
-
-	})
-}
-
-// getAvailableContexts 获取成员集群所有可用的上下文
-func getAvailableContexts() []string {
+// getAvailableContexts Get all available contexts.
+func (ctx *KarmadaTestContext) getAvailableContexts() []string {
+	// #nosec G204
 	cmd := exec.Command("kubectl", "config", "get-contexts", "-o", "name",
-		"--kubeconfig="+memberKubeconfig)
+		"--kubeconfig="+ctx.MemberKubeconfig)
 
 	output, err := cmd.Output()
 	if err != nil {
@@ -499,7 +554,8 @@ func getAvailableContexts() []string {
 	return contexts
 }
 
-// contains 检查字符串切片是否包含指定字符串
+// Tool functions
+// contains Check if the string slice contains the specified string.
 func contains(slice []string, item string) bool {
 	for _, s := range slice {
 		if s == item {
@@ -507,4 +563,18 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+// wrapArgs Encapsulation parameters
+func wrapArgs(flag string, args ...string) []string {
+	if len(args) == 0 {
+		klog.Infof("The parameter for the flag %s is empty.", flag)
+		return []string{}
+	}
+
+	out := make([]string, len(args))
+	for i, arg := range args {
+		out[i] = flag + "=" + arg
+	}
+	return out
 }

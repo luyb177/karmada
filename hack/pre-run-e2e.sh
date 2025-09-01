@@ -23,6 +23,7 @@ source "${REPO_ROOT}"/hack/util.sh
 # variable define
 KUBECONFIG_PATH=${KUBECONFIG_PATH:-"${HOME}/.kube"}
 MAIN_KUBECONFIG=${MAIN_KUBECONFIG:-"${KUBECONFIG_PATH}/karmada.config"}
+MEMBER_KUBECONFIG=${MEMBER_KUBECONFIG:-"${KUBECONFIG_PATH}/members.config"}
 HOST_CLUSTER_NAME=${HOST_CLUSTER_NAME:-"karmada-host"}
 KARMADA_APISERVER=${KARMADA_APISERVER:-"karmada-apiserver"}
 MEMBER_CLUSTER_KUBECONFIG=${MEMBER_CLUSTER_KUBECONFIG:-"${KUBECONFIG_PATH}/members.config"}
@@ -40,6 +41,7 @@ ROOT_CA_FILE=${CERT_DIR}/ca.crt
 kind load docker-image "${REGISTRY}/karmada-interpreter-webhook-example:${VERSION}" --name="${HOST_CLUSTER_NAME}"
 
 export KUBECONFIG="${MAIN_KUBECONFIG}"
+export MEMBER_KUBECONFIG="${MEMBER_KUBECONFIG}"
 
 # Due to we are using kube-proxy in IPVS mode, we have to enable strict ARP mode.
 # refer to https://metallb.universe.tf/installation/#preparation

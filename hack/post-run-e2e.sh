@@ -22,6 +22,7 @@ REPO_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 # variable define
 KUBECONFIG_PATH=${KUBECONFIG_PATH:-"${HOME}/.kube"}
 MAIN_KUBECONFIG=${MAIN_KUBECONFIG:-"${KUBECONFIG_PATH}/karmada.config"}
+MEMBER_KUBECONFIG=${MEMBER_KUBECONFIG:-"${KUBECONFIG_PATH}/members.config"}
 HOST_CLUSTER_NAME=${HOST_CLUSTER_NAME:-"karmada-host"}
 KARMADA_APISERVER=${KARMADA_APISERVER:-"karmada-apiserver"}
 MEMBER_CLUSTER_KUBECONFIG=${MEMBER_CLUSTER_KUBECONFIG:-"${KUBECONFIG_PATH}/members.config"}
@@ -31,6 +32,7 @@ PULL_MODE_CLUSTER_NAME=${PULL_MODE_CLUSTER_NAME:-"member3"}
 
 # delete interpreter webhook example in karmada-host
 export KUBECONFIG="${MAIN_KUBECONFIG}"
+export MEMBER_KUBECONFIG="${MEMBER_KUBECONFIG}"
 kubectl --context="${HOST_CLUSTER_NAME}" delete -f "${REPO_ROOT}"/examples/customresourceinterpreter/karmada-interpreter-webhook-example.yaml
 
 # uninstall metallb
